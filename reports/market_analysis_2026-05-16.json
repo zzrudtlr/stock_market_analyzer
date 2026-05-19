@@ -1,0 +1,223 @@
+{
+  "status": "success",
+  "analysis_date": "2026-05-16",
+  "bullish_stocks": [
+    {
+      "stock_code": "033240",
+      "stock_name": "자화전자",
+      "market": "KOSPI",
+      "sector": null,
+      "analysis_type": "강세 예상",
+      "bullish_score": 100.0,
+      "key_metrics": {
+        "daily_return": 16.53,
+        "return_5d": 16.28,
+        "return_20d": 59.14,
+        "rsi14": 67.5,
+        "volume_ratio_5d": 5.49
+      },
+      "reasoning": [
+        "당일 16.53% 상승으로 강한 매수 심리",
+        "최근 5일 16.28% 상승으로 상승 추세 형성",
+        "거래량이 평소의 5.5배로 증가"
+      ],
+      "note": "강한 상승 신호를 보이고 있습니다"
+    },
+    {
+      "stock_code": "452430",
+      "stock_name": "사피엔반도체",
+      "market": "KOSDAQ",
+      "sector": null,
+      "analysis_type": "강세 예상",
+      "bullish_score": 100.0,
+      "key_metrics": {
+        "daily_return": 6.24,
+        "return_5d": 15.46,
+        "return_20d": 57.27,
+        "rsi14": 60.1,
+        "volume_ratio_5d": 3.27
+      },
+      "reasoning": [
+        "당일 6.24% 상승으로 강한 매수 심리",
+        "최근 5일 15.46% 상승으로 상승 추세 형성",
+        "거래량이 평소의 3.3배로 증가"
+      ],
+      "note": "강한 상승 신호를 보이고 있습니다"
+    },
+    {
+      "stock_code": "194700",
+      "stock_name": "노바렉스",
+      "market": "KOSDAQ",
+      "sector": null,
+      "analysis_type": "강세 예상",
+      "bullish_score": 100.0,
+      "key_metrics": {
+        "daily_return": 14.23,
+        "return_5d": 8.83,
+        "return_20d": 22.41,
+        "rsi14": 66.3,
+        "volume_ratio_5d": 5.24
+      },
+      "reasoning": [
+        "당일 14.23% 상승으로 강한 매수 심리",
+        "최근 5일 8.83% 상승으로 상승 추세 형성",
+        "거래량이 평소의 5.2배로 증가"
+      ],
+      "note": "강한 상승 신호를 보이고 있습니다"
+    }
+  ],
+  "bearish_stocks": [
+    {
+      "stock_code": "307870",
+      "stock_name": "비투엔",
+      "market": "KOSDAQ",
+      "sector": null,
+      "analysis_type": "약세 주의",
+      "bearish_score": 97.0,
+      "key_metrics": {
+        "daily_return": -9.96,
+        "return_5d": -17.11,
+        "return_20d": -23.0,
+        "rsi14": 15.4,
+        "volume_ratio_5d": 3.34
+      },
+      "reasoning": [
+        "당일 9.96% 하락으로 약한 심리",
+        "최근 5일 17.11% 하락으로 하락 추세",
+        "RSI14가 15.4로 약한 모멘텀",
+        "약세 지표가 복합적으로 발생 중"
+      ],
+      "risk_warning": "약세 신호가 나타나고 있으니 주의가 필요합니다"
+    },
+    {
+      "stock_code": "373170",
+      "stock_name": "엠아이큐브솔루션",
+      "market": "KOSDAQ",
+      "sector": null,
+      "analysis_type": "약세 주의",
+      "bearish_score": 93.0,
+      "key_metrics": {
+        "daily_return": -4.29,
+        "return_5d": -12.31,
+        "return_20d": -9.68,
+        "rsi14": 19.2,
+        "volume_ratio_5d": 2.04
+      },
+      "reasoning": [
+        "당일 4.29% 하락으로 약한 심리",
+        "최근 5일 12.31% 하락으로 하락 추세",
+        "RSI14가 19.2로 약한 모멘텀",
+        "약세 지표가 복합적으로 발생 중"
+      ],
+      "risk_warning": "약세 신호가 나타나고 있으니 주의가 필요합니다"
+    },
+    {
+      "stock_code": "226590",
+      "stock_name": "엠디바이스",
+      "market": "KOSDAQ",
+      "sector": null,
+      "analysis_type": "약세 주의",
+      "bearish_score": 92.0,
+      "key_metrics": {
+        "daily_return": -20.0,
+        "return_5d": -12.4,
+        "return_20d": -22.34,
+        "rsi14": 41.5,
+        "volume_ratio_5d": 2.08
+      },
+      "reasoning": [
+        "당일 20.00% 하락으로 약한 심리",
+        "최근 5일 12.40% 하락으로 하락 추세",
+        "약세 지표가 복합적으로 발생 중"
+      ],
+      "risk_warning": "약세 신호가 나타나고 있으니 주의가 필요합니다"
+    }
+  ],
+  "mixed_signal_stocks": [
+    {
+      "stock_code": "006340",
+      "stock_name": "대원전선",
+      "market": "KOSPI",
+      "sector": null,
+      "analysis_type": "혼합 신호",
+      "bullish_score": 50.0,
+      "bearish_score": 50.0,
+      "key_metrics": {
+        "daily_return": -9.04,
+        "return_5d": -21.27,
+        "return_20d": 116.82,
+        "rsi14": 67.7
+      },
+      "bullish_signals": [
+        "RSI 높음 (67.7)"
+      ],
+      "bearish_signals": [
+        "당일 9.04% 하락",
+        "5일 21.27% 하락"
+      ],
+      "note": "긍정과 부정 신호가 섞여있어 신중한 검토가 필요합니다"
+    },
+    {
+      "stock_code": "058430",
+      "stock_name": "포스코스틸리온",
+      "market": "KOSPI",
+      "sector": null,
+      "analysis_type": "혼합 신호",
+      "bullish_score": 50.0,
+      "bearish_score": 50.0,
+      "key_metrics": {
+        "daily_return": -4.62,
+        "return_5d": -15.11,
+        "return_20d": 46.25,
+        "rsi14": 63.0
+      },
+      "bullish_signals": [
+        "RSI 높음 (63.0)"
+      ],
+      "bearish_signals": [
+        "당일 4.62% 하락",
+        "5일 15.11% 하락"
+      ],
+      "note": "긍정과 부정 신호가 섞여있어 신중한 검토가 필요합니다"
+    },
+    {
+      "stock_code": "006345",
+      "stock_name": "대원전선우",
+      "market": "KOSPI",
+      "sector": null,
+      "analysis_type": "혼합 신호",
+      "bullish_score": 50.0,
+      "bearish_score": 50.0,
+      "key_metrics": {
+        "daily_return": -18.7,
+        "return_5d": -22.8,
+        "return_20d": 284.25,
+        "rsi14": 69.4
+      },
+      "bullish_signals": [
+        "RSI 높음 (69.4)"
+      ],
+      "bearish_signals": [
+        "당일 18.70% 하락",
+        "5일 22.80% 하락"
+      ],
+      "note": "긍정과 부정 신호가 섞여있어 신중한 검토가 필요합니다"
+    }
+  ],
+  "market_overview": {
+    "analysis_date": "2026-05-16",
+    "total_analyzed_stocks": 2769,
+    "bullish_count": 62,
+    "bearish_count": 297,
+    "neutral_count": 2410,
+    "bullish_ratio": 2.2,
+    "bearish_ratio": 10.7,
+    "neutral_ratio": 87.0,
+    "average_daily_return": -2.76,
+    "market_sentiment": "혼조 흐름",
+    "sentiment_reason": "강세와 약세 신호가 섞여있는 상황"
+  },
+  "analysis_summary": "## 📊 시장 분석 요약\n\n**시장 흐름**: 혼조 흐름\n- 강세와 약세 신호가 섞여있는 상황\n\n**강세 예상 종목**: 3개\n- 자화전자 (점수: 100.0)\n- 사피엔반도체 (점수: 100.0)\n- 노바렉스 (점수: 100.0)\n\n**약세 주의 종목**: 3개\n- 비투엔 (점수: 97.0)\n- 엠아이큐브솔루션 (점수: 93.0)\n- 엠디바이스 (점수: 92.0)\n\n⚠️ **주의**: 본 분석은 참고용이며 투자 판단은 사용자 본인 책임입니다.",
+  "disclaimer": "본 분석은 과거 데이터 기반 참고용이며 투자 판단은 사용자 본인 책임입니다.",
+  "saved_at": "2026-05-16T23:24:41.239795"
+}

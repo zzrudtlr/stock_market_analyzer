@@ -1,0 +1,307 @@
+[1. 프로젝트 개발 프롬프트]
+
+너는 전문 소프트웨어 아키텍트이자 Python 금융 데이터 분석 개발자다.
+
+목표:
+현재 주식 시장 데이터를 매일 수집하고, 종목별 강세/약세/하락 위험/관심 종목을 분석해서 리포트로 보여주는 프로그램을 만들어줘.
+
+중요:
+- 이 프로그램은 투자 추천/매수·매도 지시가 아니라 데이터 기반 분석 보조 도구다.
+- 화면과 리포트에는 항상 “투자 판단은 사용자 본인 책임이며, 본 결과는 참고용입니다.” 문구를 표시한다.
+- 불법 크롤링이나 사이트 약관 위반 방식은 사용하지 않는다.
+- 가능하면 공식 API 또는 공개 라이브러리를 우선 사용한다.
+- 절대 “오를 종목”, “무조건 상승”, “매수 추천” 같은 표현은 사용하지 않는다.
+- “강세 신호가 많음”, “관심 후보”, “리스크 높음”처럼 표현한다.
+
+기술 스택:
+- Backend: Python 3.11+
+- API Server: FastAPI
+- Scheduler: APScheduler 또는 cron
+- DB: MySQL
+- ORM: SQLAlchemy
+- MySQL Driver: pymysql
+- 데이터 수집:
+  1. KRX Open API 또는 KRX 데이터
+  2. DART Open API
+  3. FinanceDataReader
+  4. yfinance는 보조 데이터용
+- 분석: pandas, numpy
+- 차트: plotly
+- 대시보드: Streamlit
+- 알림: 이메일 또는 텔레그램 구조만 준비
+
+DB 중요 규칙:
+- DB 테이블은 이미 생성되어 있음
+- 절대 임의로 컬럼명 변경 금지
+- 테이블 DROP 금지
+- ALTER TABLE 자동 실행 금지
+- ORM 모델은 현재 DB 구조 그대로 매핑
+- stock_code 기반으로 모든 데이터 연결
+- 모든 INSERT는 upsert 방식 사용
+- 크롤링 실패 시 전체 프로그램이 종료되지 않게 하고 collector_logs 테이블에 실패 로그를 저장
+
+주요 기능:
+
+1. 종목 데이터 수집
+- KOSPI, KOSDAQ 전체 종목 리스트 수집
+- 일별 OHLCV 데이터 수집
+- 최근 N일 데이터 저장
+- 데이터 중복 저장 방지
+- API 실패 시 로그 저장
+- 재시도 로직 추가
+
+2. 공시 데이터 수집
+- DART Open API를 사용해서 주요 공시 수집
+- 종목별 최근 공시 저장
+- 공시 유형 분류
+  - 실적 관련
+  - 유상증자/무상증자
+  - 전환사채
+  - 최대주주 변경
+  - 계약 체결
+  - 소송/리스크
+- 공시가 있으면 분석 리포트에 반영
+
+3. 강세 종목 분석
+아래 조건을 점수화해서 강세 점수 계산:
+- 당일 상승률
+- 5일 상승률
+- 20일 상승률
+- 거래량 증가율
+- 5일 이동평균선 돌파
+- 20일 이동평균선 돌파
+- 52주 신고가 근접 여부
+- 시장 대비 상대 강도
+
+결과:
+- 오늘의 강세 종목 TOP 20
+- 업종별 강세 종목
+- 거래량 급증 종목
+- 신고가 근접 종목
+
+4. 약세/하락 위험 종목 분석
+아래 조건을 점수화:
+- 당일 하락률
+- 5일 하락률
+- 20일 하락률
+- 거래량 동반 하락
+- 5일/20일 이동평균선 이탈
+- 20일/60일 데드크로스
+- 최근 부정적 공시 여부
+- 변동성 급증
+
+결과:
+- 오늘의 약세 종목 TOP 20
+- 하락 위험 종목
+- 거래량 동반 급락 종목
+- 추세 이탈 종목
+
+5. 전망 점수 계산
+전망 점수는 예측이 아니라 “관심도/추세/리스크 기반 점수”로 표현한다.
+
+점수 항목:
+- Momentum Score
+- Volume Score
+- Trend Score
+- Volatility Risk Score
+- Disclosure Risk Score
+- Market Relative Score
+
+최종 분류:
+- 강세 관심
+- 추세 유지
+- 관망
+- 약세 주의
+- 하락 위험
+
+6. 리포트 생성
+매일 장 마감 이후 자동으로 리포트 생성:
+- 날짜
+- 시장 요약
+- KOSPI/KOSDAQ 등락
+- 강세 업종
+- 약세 업종
+- 강세 종목 TOP 20
+- 약세 종목 TOP 20
+- 거래량 급증 종목
+- 공시 이슈 종목
+- 관심 종목 요약
+- 위험 종목 요약
+
+리포트 형식:
+- HTML
+- Markdown
+- JSON API
+- CSV 다운로드
+
+7. 대시보드
+화면 구성:
+- 메인 요약 카드
+  - 오늘 강세 종목 수
+  - 오늘 약세 종목 수
+  - 거래량 급증 종목 수
+  - 공시 이슈 종목 수
+- 종목 검색
+- 종목 상세 페이지
+  - 가격 차트
+  - 이동평균선
+  - 거래량
+  - 최근 공시
+  - 분석 점수
+- 강세/약세 랭킹 테이블
+- 필터
+  - 시장: KOSPI/KOSDAQ
+  - 업종
+  - 상승률
+  - 거래량 증가율
+  - 점수 구간
+
+프로젝트 폴더 구조:
+stock-market-analyzer/
+  README.md
+  requirements.txt
+  .env.example
+  app/
+    main.py
+    config.py
+    database.py
+    models/
+      stock.py
+      price.py
+      market.py
+      disclosure.py
+      analysis.py
+      report.py
+      watchlist.py
+      collector_log.py
+    collectors/
+      krx_collector.py
+      dart_collector.py
+      finance_data_reader_collector.py
+      yfinance_collector.py
+    analyzers/
+      momentum_analyzer.py
+      volume_analyzer.py
+      trend_analyzer.py
+      risk_analyzer.py
+      disclosure_analyzer.py
+      score_calculator.py
+    services/
+      stock_service.py
+      price_service.py
+      analysis_service.py
+      report_service.py
+      scheduler_service.py
+    api/
+      stock_routes.py
+      report_routes.py
+      analysis_routes.py
+      watchlist_routes.py
+    dashboard/
+      streamlit_app.py
+    utils/
+      logger.py
+      date_utils.py
+      retry.py
+  data/
+  reports/
+  logs/
+  tests/
+
+.env.example:
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=
+MYSQL_DATABASE=stock_market_analyzer
+DATABASE_URL=mysql+pymysql://root:password@localhost:3306/stock_market_analyzer?charset=utf8mb4
+DART_API_KEY=
+KRX_API_KEY=
+REPORT_TIME=18:30
+MARKET=KR
+
+구현 순서:
+먼저 MVP부터 만들어줘.
+
+MVP 1단계:
+- MySQL 연결
+- SQLAlchemy ORM 모델 생성
+- 종목 리스트 수집
+- 일별 가격 데이터 수집
+- 강세/약세 점수 계산
+- 분석 결과 DB 저장
+- Streamlit 대시보드
+- 일별 Markdown 리포트 생성
+
+MVP 2단계:
+- DART 공시 연동
+- 종목 상세 페이지
+- 리포트 HTML 생성
+- 알림 기능 구조 추가
+
+MVP 3단계:
+- 백테스트 기능
+- 관심 종목 관리
+- 텔레그램/이메일 알림
+
+분석 공식 예시:
+각 종목에 대해 아래 값을 계산:
+- daily_return
+- return_5d
+- return_20d
+- return_60d
+- volume_ratio_5d
+- volume_ratio_20d
+- ma5
+- ma20
+- ma60
+- ma120
+- rsi14
+- volatility_20d
+- relative_strength
+
+강세 점수 예시:
+bullish_score =
+  daily_return_score
+  + return_5d_score
+  + return_20d_score
+  + volume_score
+  + trend_score
+  + relative_strength_score
+
+약세 점수 예시:
+bearish_score =
+  negative_return_score
+  + breakdown_score
+  + high_volume_drop_score
+  + volatility_risk_score
+  + disclosure_risk_score
+
+코드 품질:
+- 함수 단위로 깔끔하게 분리
+- 타입 힌트 사용
+- 예외 처리
+- 로그 처리
+- README에 실행 방법 작성
+- 테스트 가능한 구조로 작성
+- API 키는 코드에 직접 넣지 말고 .env 사용
+- DB 연결 실패, API 실패, 데이터 없음 상황을 모두 예외 처리
+- collector_logs에 수집 성공/실패 로그 저장
+
+README 실행 방법:
+pip install -r requirements.txt
+cp .env.example .env
+python app/main.py
+streamlit run app/dashboard/streamlit_app.py
+
+최종 산출물:
+- 전체 프로젝트 코드
+- README.md
+- requirements.txt
+- .env.example
+- SQLAlchemy ORM 모델
+- 샘플 리포트
+- 샘플 대시보드
+- 데이터 수집/분석/리포트 생성이 동작하는 MVP
+
+이제 위 요구사항에 맞게 실제 실행 가능한 프로젝트를 생성해줘.

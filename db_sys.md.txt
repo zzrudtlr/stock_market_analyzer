@@ -1,0 +1,213 @@
+[2. DB 구조 프롬프트]
+
+DB는 MySQL이다.
+DB명은 stock_market_analyzer 이다.
+문자셋은 utf8mb4, collation은 utf8mb4_unicode_ci를 사용한다.
+
+중요:
+- 아래 테이블은 이미 생성되어 있다고 가정한다.
+- 절대 DROP TABLE 하지 않는다.
+- 절대 ALTER TABLE 하지 않는다.
+- 임의로 컬럼명을 변경하지 않는다.
+- SQLAlchemy ORM은 아래 DB 구조 그대로 매핑한다.
+- 외래키는 강제하지 않고 stock_code 기준으로 논리적으로 연결한다.
+- 모든 저장 로직은 중복 방지를 위해 upsert로 처리한다.
+
+테이블 구조:
+
+1. stocks
+종목 기본정보
+
+컬럼:
+- id BIGINT AUTO_INCREMENT PRIMARY KEY
+- market VARCHAR(20) NOT NULL
+- stock_code VARCHAR(20) NOT NULL
+- stock_name VARCHAR(100) NOT NULL
+- sector VARCHAR(100) NULL
+- industry VARCHAR(100) NULL
+- listing_date DATE NULL
+- is_active TINYINT(1) NOT NULL DEFAULT 1
+- created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+- updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+
+인덱스:
+- UNIQUE KEY uk_stocks_code (stock_code)
+- INDEX idx_stocks_market (market)
+- INDEX idx_stocks_name (stock_name)
+
+2. stock_daily_prices
+종목별 일별 시세
+
+컬럼:
+- id BIGINT AUTO_INCREMENT PRIMARY KEY
+- stock_code VARCHAR(20) NOT NULL
+- trade_date DATE NOT NULL
+- open_price BIGINT NULL
+- high_price BIGINT NULL
+- low_price BIGINT NULL
+- close_price BIGINT NULL
+- change_price BIGINT NULL
+- change_rate DECIMAL(8,4) NULL
+- volume BIGINT NULL
+- trading_value BIGINT NULL
+- market_cap BIGINT NULL
+- created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+- updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+
+인덱스:
+- UNIQUE KEY uk_price_stock_date (stock_code, trade_date)
+- INDEX idx_price_date (trade_date)
+- INDEX idx_price_stock (stock_code)
+
+3. market_indices
+시장 지수 데이터
+
+컬럼:
+- id BIGINT AUTO_INCREMENT PRIMARY KEY
+- index_code VARCHAR(30) NOT NULL
+- index_name VARCHAR(100) NOT NULL
+- trade_date DATE NOT NULL
+- close_value DECIMAL(12,4) NULL
+- change_value DECIMAL(12,4) NULL
+- change_rate DECIMAL(8,4) NULL
+- volume BIGINT NULL
+- trading_value BIGINT NULL
+- created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+
+인덱스:
+- UNIQUE KEY uk_index_date (index_code, trade_date)
+- INDEX idx_market_indices_date (trade_date)
+
+4. disclosures
+DART 공시 정보
+
+컬럼:
+- id BIGINT AUTO_INCREMENT PRIMARY KEY
+- stock_code VARCHAR(20) NULL
+- corp_code VARCHAR(20) NULL
+- report_date DATE NOT NULL
+- receipt_no VARCHAR(50) NULL
+- title VARCHAR(300) NOT NULL
+- disclosure_type VARCHAR(100) NULL
+- risk_level VARCHAR(20) NULL
+- summary TEXT NULL
+- url VARCHAR(500) NULL
+- created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+
+인덱스:
+- UNIQUE KEY uk_disclosure_receipt (receipt_no)
+- INDEX idx_disclosure_stock_date (stock_code, report_date)
+- INDEX idx_disclosure_date (report_date)
+- INDEX idx_disclosure_type (disclosure_type)
+
+5. stock_analysis_results
+종목별 분석 결과
+
+컬럼:
+- id BIGINT AUTO_INCREMENT PRIMARY KEY
+- stock_code VARCHAR(20) NOT NULL
+- analysis_date DATE NOT NULL
+- daily_return DECIMAL(8,4) NULL
+- return_5d DECIMAL(8,4) NULL
+- return_20d DECIMAL(8,4) NULL
+- return_60d DECIMAL(8,4) NULL
+- volume_ratio_5d DECIMAL(10,4) NULL
+- volume_ratio_20d DECIMAL(10,4) NULL
+- ma5 DECIMAL(18,4) NULL
+- ma20 DECIMAL(18,4) NULL
+- ma60 DECIMAL(18,4) NULL
+- ma120 DECIMAL(18,4) NULL
+- rsi14 DECIMAL(8,4) NULL
+- volatility_20d DECIMAL(8,4) NULL
+- relative_strength DECIMAL(8,4) NULL
+- momentum_score DECIMAL(8,4) NULL
+- volume_score DECIMAL(8,4) NULL
+- trend_score DECIMAL(8,4) NULL
+- risk_score DECIMAL(8,4) NULL
+- disclosure_score DECIMAL(8,4) NULL
+- bullish_score DECIMAL(8,4) NULL
+- bearish_score DECIMAL(8,4) NULL
+- final_signal VARCHAR(50) NULL
+- signal_reason TEXT NULL
+- created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+- updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+
+인덱스:
+- UNIQUE KEY uk_analysis_stock_date (stock_code, analysis_date)
+- INDEX idx_analysis_date (analysis_date)
+- INDEX idx_analysis_bullish (analysis_date, bullish_score)
+- INDEX idx_analysis_bearish (analysis_date, bearish_score)
+- INDEX idx_analysis_signal (analysis_date, final_signal)
+
+6. daily_market_reports
+일일 시장 분석 리포트
+
+컬럼:
+- id BIGINT AUTO_INCREMENT PRIMARY KEY
+- report_date DATE NOT NULL
+- title VARCHAR(200) NOT NULL
+- market_summary TEXT NULL
+- bullish_summary TEXT NULL
+- bearish_summary TEXT NULL
+- disclosure_summary TEXT NULL
+- markdown_content LONGTEXT NULL
+- html_content LONGTEXT NULL
+- json_content JSON NULL
+- created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+
+인덱스:
+- UNIQUE KEY uk_daily_report_date (report_date)
+
+7. watchlist_groups
+관심 종목 그룹
+
+컬럼:
+- id BIGINT AUTO_INCREMENT PRIMARY KEY
+- group_name VARCHAR(100) NOT NULL
+- description VARCHAR(300) NULL
+- created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+- updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+
+인덱스:
+- UNIQUE KEY uk_watchlist_group_name (group_name)
+
+8. watchlist_items
+관심 종목 목록
+
+컬럼:
+- id BIGINT AUTO_INCREMENT PRIMARY KEY
+- group_id BIGINT NOT NULL
+- stock_code VARCHAR(20) NOT NULL
+- memo VARCHAR(500) NULL
+- created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+
+인덱스:
+- UNIQUE KEY uk_watchlist_group_stock (group_id, stock_code)
+- INDEX idx_watchlist_stock (stock_code)
+
+9. collector_logs
+데이터 수집 로그
+
+컬럼:
+- id BIGINT AUTO_INCREMENT PRIMARY KEY
+- collector_name VARCHAR(100) NOT NULL
+- target_date DATE NULL
+- status VARCHAR(20) NOT NULL
+- message TEXT NULL
+- started_at DATETIME NULL
+- finished_at DATETIME NULL
+- created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+
+인덱스:
+- INDEX idx_collector_logs_date (target_date)
+- INDEX idx_collector_logs_status (status)
+
+Upsert 기준:
+- stocks: stock_code 기준
+- stock_daily_prices: stock_code + trade_date 기준
+- market_indices: index_code + trade_date 기준
+- disclosures: receipt_no 기준
+- stock_analysis_results: stock_code + analysis_date 기준
+- daily_market_reports: report_date 기준
+- watchlist_groups: group_name 기준
+- watchlist_items: group_id + stock_code 기준
