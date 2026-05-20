@@ -1645,6 +1645,58 @@ def render_watchlist(analysis_date: date):
 
 # ── 종목 검색 ─────────────────────────────────────────────────
 
+def _fetch_naver_board(stock_code: str, limit: int = 15) -> list[dict]:
+    """네이버 파이낸스 종목토론 게시글 목록 스크래핑."""
+    import re
+    import urllib.request
+
+    posts: list[dict] = []
+    try:
+        url = f"https://finance.naver.com/item/board.naver?code={stock_code}&page=1"
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                "Referer": "https://finance.naver.com",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            raw = resp.read()
+        html = raw.decode("euc-kr", errors="replace")
+
+        row_pat    = re.compile(r'<tr[^>]*>(.*?)</tr>', re.DOTALL)
+        title_pat  = re.compile(r'<td[^>]*class="title"[^>]*>.*?<a[^>]*>([^<]{2,})</a>', re.DOTALL)
+        writer_pat = re.compile(r'<td[^>]*class="writer"[^>]*>.*?<a[^>]*>([^<]+)</a>', re.DOTALL)
+        date_pat   = re.compile(r'<td[^>]*class="date"[^>]*>\s*([0-9./: -]{8,})\s*</td>')
+        view_pat   = re.compile(r'<td[^>]*class="view"[^>]*>\s*([0-9,]+)\s*</td>')
+        agree_pat  = re.compile(r'<td[^>]*class="agree"[^>]*>\s*([0-9]+)\s*</td>')
+
+        for m in row_pat.finditer(html):
+            row = m.group(1)
+            t = title_pat.search(row)
+            if not t:
+                continue
+            title = re.sub(r'\s+', ' ', t.group(1)).strip()
+            if len(title) < 2:
+                continue
+            w = writer_pat.search(row)
+            d = date_pat.search(row)
+            v = view_pat.search(row)
+            a = agree_pat.search(row)
+            posts.append({
+                "title":  title,
+                "writer": w.group(1).strip() if w else "-",
+                "date":   d.group(1).strip() if d else "-",
+                "views":  v.group(1).strip() if v else "-",
+                "agrees": a.group(1).strip() if a else "0",
+            })
+            if len(posts) >= limit:
+                break
+    except Exception as e:
+        logger.debug(f"[토론] {stock_code} 스크래핑 실패: {e}")
+    return posts
+
+
 def render_stock_search(analysis_date: date):
     st.title("🔍 종목 검색")
 
@@ -2036,6 +2088,25 @@ def _render_stock_detail(stock_code: str, analysis_date: date):
             for d in raw_discs[:5]:
                 st.markdown(f"- **{d['report_date']}** | {d['title']} | 유형: {d['disclosure_type']}")
 
+    # ── 종목토론 ─────────────────────────────────────────────────
+    st.markdown("---")
+    st.subheader("💬 종목토론")
+    st.caption("네이버 파이낸스 종목토론 최근 게시글입니다. 참고용이며 투자 권유가 아닙니다.")
+    with st.spinner("토론 목록 불러오는 중..."):
+        board_posts = _fetch_naver_board(stock_code, limit=15)
+    if board_posts:
+        for p in board_posts:
+            st.markdown(
+                f"**{p['title']}**  \n"
+                f"<span style='font-size:0.8em;color:gray;'>"
+                f"👤 {p['writer']} &nbsp;·&nbsp; 🕐 {p['date']} &nbsp;·&nbsp; 👁 {p['views']} &nbsp;·&nbsp; 👍 {p['agrees']}"
+                f"</span>",
+                unsafe_allow_html=True,
+            )
+            st.divider()
+    else:
+        st.caption("종목토론 게시글을 불러오지 못했습니다.")
+
 
 def _make_price_chart(df: pd.DataFrame, stock_code: str) -> go.Figure:
     df = df.copy()
@@ -2405,6 +2476,25 @@ def _render_ai_stock_detail_section(analysis_date: date):
                 st.caption(d["ai_disclosure_summary"])
     else:
         st.caption("이 종목의 공시 AI 분석이 없습니다. 종목 검색 페이지에서 생성하세요.")
+
+    # ── 종목토론 ─────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("**💬 종목토론 (네이버 파이낸스)**")
+    st.caption("최근 게시글입니다. 참고용이며 투자 권유가 아닙니다.")
+    with st.spinner("토론 목록 불러오는 중..."):
+        board_posts = _fetch_naver_board(selected_code, limit=15)
+    if board_posts:
+        for p in board_posts:
+            st.markdown(
+                f"**{p['title']}**  \n"
+                f"<span style='font-size:0.8em;color:gray;'>"
+                f"👤 {p['writer']} &nbsp;·&nbsp; 🕐 {p['date']} &nbsp;·&nbsp; 👁 {p['views']} &nbsp;·&nbsp; 👍 {p['agrees']}"
+                f"</span>",
+                unsafe_allow_html=True,
+            )
+            st.divider()
+    else:
+        st.caption("종목토론 게시글을 불러오지 못했습니다.")
 
     st.caption("⚠️ 본 AI 분석은 기술적 지표 기반 참고용이며 투자 권유가 아닙니다.")
 
