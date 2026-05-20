@@ -1662,14 +1662,21 @@ def _fetch_naver_board(stock_code: str, limit: int = 15) -> list[dict]:
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
             raw = resp.read()
-        html = raw.decode("euc-kr", errors="replace")
+        html = raw.decode("utf-8", errors="replace")
 
-        row_pat    = re.compile(r'<tr[^>]*>(.*?)</tr>', re.DOTALL)
-        title_pat  = re.compile(r'<td[^>]*class="title"[^>]*>.*?<a[^>]*>([^<]{2,})</a>', re.DOTALL)
-        writer_pat = re.compile(r'<td[^>]*class="writer"[^>]*>.*?<a[^>]*>([^<]+)</a>', re.DOTALL)
-        date_pat   = re.compile(r'<td[^>]*class="date"[^>]*>\s*([0-9./: -]{8,})\s*</td>')
-        view_pat   = re.compile(r'<td[^>]*class="view"[^>]*>\s*([0-9,]+)\s*</td>')
-        agree_pat  = re.compile(r'<td[^>]*class="agree"[^>]*>\s*([0-9]+)\s*</td>')
+        # 실제 HTML 구조 기반 패턴
+        # <tr onMouseOver="mouseOver(this)" ...> 로 게시글 행 식별
+        row_pat    = re.compile(r'<tr[^>]*onMouseOver="mouseOver[^>]*>(.*?)</tr>', re.DOTALL)
+        # <a ... title="제목"> 속성에 제목 텍스트가 들어 있음
+        title_pat  = re.compile(r'<td[^>]*class="title"[^>]*>.*?<a[^>]+title="([^"]+)"', re.DOTALL)
+        # 날짜: <span class="tah p10 gray03">2026.05.20 23:13</span>
+        date_pat   = re.compile(r'<span class="tah p10 gray03">(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2})</span>')
+        # 작성자: class="p11 align_right" td 안쪽 </span> 이후 텍스트
+        writer_pat = re.compile(r'<td[^>]*class="p11 align_right"[^>]*>.*?</span>(.*?)</td>', re.DOTALL)
+        # 조회수: <td><span class="tah p10 gray03">숫자</span></td>
+        view_pat   = re.compile(r'<td><span class="tah p10 gray03">(\d+)</span></td>')
+        # 공감: <strong class="tah p10 gray03 ">숫자</strong>
+        agree_pat  = re.compile(r'<strong class="tah p10 gray03 ">(\d+)</strong>')
 
         for m in row_pat.finditer(html):
             row = m.group(1)
@@ -1679,16 +1686,17 @@ def _fetch_naver_board(stock_code: str, limit: int = 15) -> list[dict]:
             title = re.sub(r'\s+', ' ', t.group(1)).strip()
             if len(title) < 2:
                 continue
-            w = writer_pat.search(row)
             d = date_pat.search(row)
+            w = writer_pat.search(row)
             v = view_pat.search(row)
             a = agree_pat.search(row)
+            writer = re.sub(r'\s+', ' ', w.group(1)).strip() if w else "-"
             posts.append({
                 "title":  title,
-                "writer": w.group(1).strip() if w else "-",
-                "date":   d.group(1).strip() if d else "-",
-                "views":  v.group(1).strip() if v else "-",
-                "agrees": a.group(1).strip() if a else "0",
+                "writer": writer if writer else "익명",
+                "date":   d.group(1) if d else "-",
+                "views":  v.group(1) if v else "-",
+                "agrees": a.group(1) if a else "0",
             })
             if len(posts) >= limit:
                 break
