@@ -1139,7 +1139,10 @@ def _run_all_analyses(analysis_date: date, include_collect: bool = False):
     """홈 대시보드 전체 분석 일괄 실행.
 
     include_collect=True 이면 종목수집 → 시세수집 → 기본분석까지 포함해 처음부터 실행.
+    수급·테마·뉴스·실적 4개 배치는 병렬 실행하며, 이미 당일 분석된 종목은 자동 스킵합니다.
     """
+    import concurrent.futures
+
     from app.services.supply_demand_analysis_service import run_supply_demand_batch
     from app.services.theme_analysis_service import run_theme_analysis
     from app.services.news_analysis_service import run_news_batch
@@ -1148,43 +1151,70 @@ def _run_all_analyses(analysis_date: date, include_collect: bool = False):
     from app.services.analysis_service import run_analysis
 
     results = {}
+    progress_bar = st.progress(0)
+    status_box   = st.empty()
 
-    steps = []
+    # ── 1단계: 수집 (순차) ────────────────────────────────────────
+    collect_steps = []
     if include_collect:
         from app.collectors.finance_data_reader_collector import (
             collect_stock_list,
             collect_market_indices,
             collect_prices_bulk_fdr,
         )
-        steps += [
+        collect_steps = [
             ("collect_stocks",  "📋 종목 수집",            collect_stock_list),
             ("collect_indices", "📉 시장 지수 수집",        lambda: collect_market_indices(60)),
             ("collect_prices",  "📈 시세 수집 FDR (60일)", lambda: collect_prices_bulk_fdr(60)),
             ("base_analysis",   "🔬 기본 분석 실행",        lambda: run_analysis(analysis_date)),
         ]
 
-    steps += [
-        ("supply",      "💰 수급 배치 분석",      lambda: run_supply_demand_batch(analysis_date, limit=80)),
-        ("theme",       "📈 테마 분석",            lambda: run_theme_analysis(analysis_date)),
-        ("news",        "📰 뉴스 감성 분석",       lambda: run_news_batch(analysis_date, limit=80)),
-        ("fundamental", "📊 실적 배치 분석",       lambda: run_fundamental_batch(analysis_date, limit=80)),
-        ("ai_report",   "🤖 AI 시장 리포트",       lambda: generate_market_report(analysis_date)),
-    ]
+    # 전체 진행 단계: 수집(n) + 병렬배치(1) + AI리포트(1)
+    total_steps = len(collect_steps) + 2
 
-    progress_bar = st.progress(0)
-    status_box   = st.empty()
-
-    for i, (key, label, fn) in enumerate(steps):
-        status_box.info(f"[{i+1}/{len(steps)}] {label} 실행 중...")
+    for i, (key, label, fn) in enumerate(collect_steps):
+        status_box.info(f"[{i+1}/{total_steps}] {label} 실행 중...")
         try:
             res = fn()
-            if not isinstance(res, dict):
-                res = {"status": "success"}
-            results[key] = res
+            results[key] = res if isinstance(res, dict) else {"status": "success"}
         except Exception as e:
             results[key] = {"status": "error", "message": str(e)}
-        progress_bar.progress((i + 1) / len(steps))
+        progress_bar.progress((i + 1) / total_steps)
 
+    # ── 2단계: 수급·테마·뉴스·실적 병렬 실행 ──────────────────────
+    parallel_step_idx = len(collect_steps) + 1
+    status_box.info(
+        f"[{parallel_step_idx}/{total_steps}] "
+        "💰 수급 / 📈 테마 / 📰 뉴스 / 📊 실적 병렬 분석 중..."
+    )
+
+    parallel_tasks = {
+        "supply":      lambda: run_supply_demand_batch(analysis_date, limit=80),
+        "theme":       lambda: run_theme_analysis(analysis_date),
+        "news":        lambda: run_news_batch(analysis_date, limit=80),
+        "fundamental": lambda: run_fundamental_batch(analysis_date, limit=80),
+    }
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {key: executor.submit(fn) for key, fn in parallel_tasks.items()}
+        for key, future in futures.items():
+            try:
+                res = future.result()
+                results[key] = res if isinstance(res, dict) else {"status": "success"}
+            except Exception as e:
+                results[key] = {"status": "error", "message": str(e)}
+
+    progress_bar.progress(parallel_step_idx / total_steps)
+
+    # ── 3단계: AI 리포트 (순차, 위 결과 활용) ─────────────────────
+    status_box.info(f"[{total_steps}/{total_steps}] 🤖 AI 시장 리포트 생성 중...")
+    try:
+        res = generate_market_report(analysis_date)
+        results["ai_report"] = res if isinstance(res, dict) else {"status": "success"}
+    except Exception as e:
+        results["ai_report"] = {"status": "error", "message": str(e)}
+
+    progress_bar.progress(1.0)
     status_box.empty()
     progress_bar.empty()
     return results
@@ -1215,7 +1245,7 @@ def render_home(analysis_date: date, market):
             st.markdown("**처음부터 전체 실행** *(데이터 없을 때)*")
             st.caption("① 종목수집 → ② 지수수집 → ③ 시세수집(60일) → ④ 기본분석 → ⑤ 수급 → ⑥ 테마 → ⑦ 뉴스 → ⑧ 실적 → ⑨ AI리포트")
             run_full = st.button(
-                "⬇️ 처음부터 전체 실행 (약 20~40분)",
+                "⬇️ 처음부터 전체 실행 (약 10~15분)",
                 type="primary",
                 use_container_width=True,
                 key="home_run_full",
@@ -1224,7 +1254,7 @@ def render_home(analysis_date: date, market):
             st.markdown("**분석만 재실행** *(데이터 이미 있을 때)*")
             st.caption("⑤ 수급 → ⑥ 테마 → ⑦ 뉴스 → ⑧ 실적 → ⑨ AI리포트만 재실행")
             run_all = st.button(
-                "▶ 분석만 재실행 (약 5~15분)",
+                "▶ 분석만 재실행 (약 1~5분)",
                 use_container_width=True,
                 key="home_run_all",
             )

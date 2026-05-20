@@ -309,7 +309,7 @@ def analyze_news_sentiment(
 def run_news_batch(
     analysis_date: Optional[date] = None,
     limit: int = 80,
-    delay_sec: float = 0.5,
+    delay_sec: float = 0.2,
 ) -> dict:
     """
     관심종목 + 분석점수 상위 종목 뉴스 감성 배치 분석.
@@ -317,14 +317,13 @@ def run_news_batch(
     Args:
         analysis_date: 기준일 (None이면 오늘)
         limit: 최대 처리 종목 수
-        delay_sec: 종목 간 대기 (뉴스 서버 부하 방지)
+        delay_sec: 종목 간 대기
     """
     if analysis_date is None:
         analysis_date = date.today()
 
     session = get_db_session()
     try:
-        # 관심종목 코드 수집
         from app.models.watchlist import WatchlistItem
         watchlist_codes = set(
             session.execute(
@@ -332,7 +331,6 @@ def run_news_batch(
             ).scalars().all()
         )
 
-        # 분석점수 상위 종목
         from app.models.analysis import StockAnalysisResult
         top_codes = list(
             session.execute(
@@ -342,15 +340,30 @@ def run_news_batch(
                 .limit(limit)
             ).scalars().all()
         )
+
+        # 이미 당일 분석된 종목 제외
+        already_done = set(
+            session.execute(
+                select(NewsSentimentResult.stock_code)
+                .where(NewsSentimentResult.analysis_date == analysis_date)
+            ).scalars().all()
+        )
     finally:
         session.close()
 
-    target_codes = list(dict.fromkeys(list(watchlist_codes) + top_codes))[:limit]
+    all_targets = list(dict.fromkeys(list(watchlist_codes) + top_codes))[:limit]
+    target_codes = [c for c in all_targets if c not in already_done]
 
-    if not target_codes:
+    if not all_targets:
         return {"status": "no_data", "message": f"{analysis_date} 분석 대상 종목 없음"}
 
-    success = skipped = errors = 0
+    logger.info(
+        f"[뉴스배치] 시작 — 전체 {len(all_targets)}개 중 신규 {len(target_codes)}개 / {analysis_date}"
+        f" (기존 {len(already_done)}개 스킵)"
+    )
+
+    success = errors = 0
+    skipped = len(already_done)
     for code in target_codes:
         r = analyze_news_sentiment(code, analysis_date, with_ai=True)
         if r.get("status") == "success":
@@ -366,10 +379,11 @@ def run_news_batch(
     return {
         "status": status,
         "analysis_date": str(analysis_date),
-        "total": len(target_codes),
+        "total": len(all_targets),
         "success": success,
         "skipped": skipped,
         "errors": errors,
+        "already_skipped": len(already_done),
     }
 
 

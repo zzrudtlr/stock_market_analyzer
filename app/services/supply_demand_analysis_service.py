@@ -40,13 +40,22 @@ def _to_date_str(d: date) -> str:
 def _fetch_investor_trading(stock_code: str, end_date: date,
                             lookback: int = 20) -> Optional[pd.DataFrame]:
     """pykrx: 투자자별 순매수 금액 (최근 lookback 영업일)."""
+    import contextlib
+    import io
+    import logging
+
+    from app.utils.pykrx_lock import _lock as _pykrx_lock
     from pykrx import stock as pk
+
+    logging.getLogger("pykrx").setLevel(logging.CRITICAL)
 
     start = end_date - timedelta(days=lookback * 2 + 10)
     try:
-        df = pk.get_market_trading_value_by_date(
-            _to_date_str(start), _to_date_str(end_date), stock_code
-        )
+        with _pykrx_lock:
+            with contextlib.redirect_stdout(io.StringIO()):
+                df = pk.get_market_trading_value_by_date(
+                    _to_date_str(start), _to_date_str(end_date), stock_code
+                )
         if df is None or df.empty:
             return None
         # 위치 기반으로 컬럼명 통일 (인코딩 무관)
@@ -73,13 +82,19 @@ def _fetch_investor_trading(stock_code: str, end_date: date,
 
 def _fetch_short_sell(stock_code: str, end_date: date) -> tuple[float, int]:
     """pykrx: 공매도 비중(%) 및 수량."""
+    import contextlib
+    import io
+
+    from app.utils.pykrx_lock import _lock as _pykrx_lock
     from pykrx import stock as pk
 
     start = end_date - timedelta(days=15)
     try:
-        df = pk.get_shorting_volume_by_date(
-            _to_date_str(start), _to_date_str(end_date), stock_code
-        )
+        with _pykrx_lock:
+            with contextlib.redirect_stdout(io.StringIO()):
+                df = pk.get_shorting_volume_by_date(
+                    _to_date_str(start), _to_date_str(end_date), stock_code
+                )
         if df is None or df.empty:
             return 0.0, 0
         latest = df.iloc[-1]
@@ -416,10 +431,26 @@ def run_supply_demand_batch(analysis_date: Optional[date] = None,
             "message": f"{target_date} 분석 대상 종목이 없습니다. 분석을 먼저 실행하세요.",
         }
 
-    logger.info(f"[수급배치] 시작 — {len(target_codes)}개 종목 / {target_date}")
-    success_cnt = error_cnt = skip_cnt = 0
+    # 이미 당일 분석된 종목 제외
+    session2 = get_db_session()
+    try:
+        already_done = set(
+            session2.execute(
+                select(SupplyDemandAnalysis.stock_code)
+                .where(SupplyDemandAnalysis.analysis_date == target_date)
+            ).scalars().all()
+        )
+    finally:
+        session2.close()
 
-    for code in target_codes:
+    new_codes = [c for c in target_codes if c not in already_done]
+    logger.info(
+        f"[수급배치] 시작 — 전체 {len(target_codes)}개 중 신규 {len(new_codes)}개 / {target_date}"
+        f" (기존 {len(already_done)}개 스킵)"
+    )
+    success_cnt = error_cnt = skip_cnt = len(already_done)
+
+    for code in new_codes:
         try:
             result = analyze_stock_supply_demand(code, target_date, with_ai=False)
             if result.get("status") == "success":
@@ -443,6 +474,7 @@ def run_supply_demand_batch(analysis_date: Optional[date] = None,
         "success": success_cnt,
         "skipped": skip_cnt,
         "errors":  error_cnt,
+        "already_skipped": len(already_done),
     }
 
 

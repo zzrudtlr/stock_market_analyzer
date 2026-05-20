@@ -70,13 +70,24 @@ def _safe_float(text: str) -> Optional[float]:
 
 def _fetch_pykrx_fundamental(stock_code: str, analysis_date: date) -> dict:
     """pykrx로 PER·PBR·EPS 조회 (최근 5 영업일 내 탐색)."""
+    import contextlib
+    import io
+    import logging
+
+    from app.utils.pykrx_lock import _lock as _pykrx_lock
+
+    # pykrx 내부 에러 출력 억제 (빈 응답 시 자체 print/log로 JSONDecodeError를 출력함)
+    logging.getLogger("pykrx").setLevel(logging.CRITICAL)
+
     try:
         from pykrx import stock as krx
         for offset in range(5):
             d = analysis_date - timedelta(days=offset)
             date_str = d.strftime("%Y%m%d")
             try:
-                df = krx.get_market_fundamental_by_date(date_str, date_str, stock_code)
+                with _pykrx_lock:
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        df = krx.get_market_fundamental_by_date(date_str, date_str, stock_code)
                 if df is not None and not df.empty:
                     row = df.iloc[-1]
                     per = float(row.get("PER", 0)) or None
@@ -516,7 +527,7 @@ def analyze_fundamental(
 def run_fundamental_batch(
     analysis_date: Optional[date] = None,
     limit: int = 80,
-    delay_sec: float = 0.5,
+    delay_sec: float = 0.2,
 ) -> dict:
     """관심종목 + 분석점수 상위 종목 펀더멘털 배치 분석."""
     if analysis_date is None:
@@ -539,14 +550,30 @@ def run_fundamental_batch(
                 .limit(limit)
             ).scalars().all()
         )
+
+        # 이미 당일 분석된 종목 제외
+        already_done = set(
+            session.execute(
+                select(FundamentalAnalysisResult.stock_code)
+                .where(FundamentalAnalysisResult.analysis_date == analysis_date)
+            ).scalars().all()
+        )
     finally:
         session.close()
 
-    targets = list(dict.fromkeys(list(watchlist_codes) + top_codes))[:limit]
-    if not targets:
+    all_targets = list(dict.fromkeys(list(watchlist_codes) + top_codes))[:limit]
+    targets = [c for c in all_targets if c not in already_done]
+
+    if not all_targets:
         return {"status": "no_data", "message": f"{analysis_date} 분석 대상 종목 없음"}
 
-    success = skipped = errors = 0
+    logger.info(
+        f"[실적배치] 시작 — 전체 {len(all_targets)}개 중 신규 {len(targets)}개 / {analysis_date}"
+        f" (기존 {len(already_done)}개 스킵)"
+    )
+
+    success = errors = 0
+    skipped = len(already_done)
     for code in targets:
         r = analyze_fundamental(code, analysis_date, with_ai=True)
         if r.get("status") == "success":
@@ -561,10 +588,11 @@ def run_fundamental_batch(
     return {
         "status": "success" if errors == 0 else "partial",
         "analysis_date": str(analysis_date),
-        "total": len(targets),
+        "total": len(all_targets),
         "success": success,
         "skipped": skipped,
         "errors": errors,
+        "already_skipped": len(already_done),
     }
 
 
